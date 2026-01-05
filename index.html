@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1000 Kilómetros - Desafío de Geografía</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- Home Screen -->
+        <section id="home-screen" class="active"
+            style="position: absolute; top:0; left:0; width:100%; height:100%; z-index: 500; background: #0f172a; display: flex; align-items: center; justify-content: center; flex-direction: column; overflow: hidden;">
+
+            <!-- Background Video -->
+            <video autoplay muted loop playsinline id="bg-video"
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.4; z-index: -1; pointer-events: none;">
+                <source src="bg.mp4" type="video/mp4">
+            </video>
+
+            <h1 style="font-size: 5rem; font-weight: 800; margin-bottom: 0px; text-shadow: 0 0 30px rgba(0,0,0,0.5);">
+                1000<span style="color: #38bdf8">KM</span></h1>
+            <p
+                style="font-size: 1.5rem; color: #cbd5e1; letter-spacing: 5px; margin-bottom: 40px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); font-weight: 600;">
+                ESPAÑA</p>
+
+            <!-- Login Form -->
+            <div id="login-container"
+                style="background: rgba(15, 23, 42, 0.75); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 15px; width: 320px; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+                <h3 style="margin-bottom: 10px; color: white; text-align: center; font-weight: 600;">Identifícate</h3>
+                <p
+                    style="font-size: 0.8rem; color: #94a3b8; text-align: center; margin-top: -10px; margin-bottom: 10px;">
+                    Si no tienes cuenta, se creará automáticamente.</p>
+
+                <input type="text" id="username-input" placeholder="Usuario" class="auth-input"
+                    style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 12px; border-radius: 8px; color: white; font-family: inherit; outline: none;">
+                <input type="password" id="password-input" placeholder="Contraseña" class="auth-input"
+                    style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 12px; border-radius: 8px; color: white; font-family: inherit; outline: none;">
+
+                <button id="login-btn" class="btn-primary" style="justify-content: center; margin-top: 10px;">ENTRAR /
+                    CREAR</button>
+
+                <button id="guest-btn" class="btn-cancel"
+                    style="justify-content: center; padding: 10px; font-size: 0.9rem;">Jugar como Invitado</button>
+
+                <p id="login-error"
+                    style="color: #ef4444; font-size: 0.9rem; text-align: center; min-height: 20px; margin: 0;"></p>
+            </div>
+
+            <!-- Game Start Info (Hidden initially) -->
+            <div id="game-start-container"
+                style="display: none; flex-direction: column; align-items: center; width: 100%; max-width: 600px;">
+                <div
+                    style="background: rgba(30, 41, 59, 0.8); padding: 30px; border-radius: 20px; text-align: left; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.1); width: 100%; backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+                    <p
+                        style="margin: 10px 0; font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                        👤 <span id="user-display" style="color: #38bdf8; font-weight: 800;">Jugador</span></p>
+                    <p style="margin: 10px 0; font-size: 1.1rem;">🎯 Empiezas con <b>1000 km</b>.</p>
+                    <p style="margin: 10px 0; font-size: 1.1rem;">📉 Distancia de error = Kms restados.</p>
+                    <p style="margin: 10px 0; font-size: 1.1rem; color: #ef4444;">⏳ Tiempo pensando = -1 km/s.</p>
+                </div>
+
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                    <button id="start-game-btn" class="btn-primary" style="padding: 20px 40px; font-size: 1.2rem;">
+                        COMENZAR
+                    </button>
+                    <button id="ranking-btn" class="btn-cancel"
+                        style="padding: 20px; border-color: #38bdf8; color: #38bdf8;">
+                        🏆 RANKING
+                    </button>
+                    <button id="logout-btn" class="btn-cancel"
+                        style="padding: 20px; border-color: rgba(255,255,255,0.2);">
+                        SALIR
+                    </button>
+                </div>
+                <button id="logout-btn" class="btn-cancel" style="padding: 20px; border-color: rgba(255,255,255,0.2);">
+                    SALIR
+                </button>
+            </div>
+    </div>
+    </section>
+
+    <!-- Header / Status Bar -->
+    <header id="status-bar" class="status-bar" style="display: none;">
+        <div class="score-container">
+            <span class="label">KILÓMETROS RESTANTES</span>
+            <span class="value" id="score-value">1000</span>
+            <span class="unit">km</span>
+        </div>
+        <div class="timer-container active" id="timer-container">
+            <span class="icon">⏱️</span>
+            <span class="penalty">-<span id="penalty-value">0</span> km</span>
+        </div>
+    </header>
+
+    <!-- Main Game View -->
+    <main id="game-view" class="game-view" style="visibility: hidden;">
+        <div id="street-view" class="street-view-container"></div>
+
+        <div class="controls">
+            <button id="guess-btn" class="btn-primary">
+                <span class="btn-icon">📍</span>
+                <span class="btn-text">SELECCIONAR EN EL MAPA</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- Map Modal -->
+    <div id="map-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Selecciona la ubicación</h2>
+                <div class="timer-warning">Perdiendo <span id="modal-timer">0</span> km...</div>
+            </div>
+            <div id="guess-map" class="map-container"></div>
+            <div class="modal-footer">
+                <button id="confirm-guess-btn" class="btn-confirm" disabled>CONFIRMAR UBICACIÓN</button>
+                <button id="close-map-btn" class="btn-cancel">VOLVER A STREET VIEW</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="modal">
+        <div class="modal-content result-content">
+            <h2>Resultado</h2>
+            <div id="result-map" class="map-container result-map"></div>
+
+            <div class="result-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Distancia</span>
+                    <span class="stat-value" id="distance-result">0 km</span>
+                </div>
+                <div class="stat-item penalty">
+                    <span class="stat-label">Tiempo</span>
+                    <span class="stat-value" id="time-penalty-result">-0 km</span>
+                </div>
+                <div class="stat-item total">
+                    <span class="stat-label">Total Restado</span>
+                    <span class="stat-value" id="total-loss">0 km</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="next-round-btn" class="btn-primary">SIGUIENTE RONDA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="modal">
+        <div class="modal-content game-over-content">
+            <h1>Juego Terminado</h1>
+            <p>Te has quedado sin kilómetros.</p>
+            <div class="final-score">
+                Rondas sobrevividas: <span id="rounds-survived">0</span>
+            </div>
+            <button id="restart-btn" class="btn-primary">VOLVER AL MENU</button>
+        </div>
+    </div>
+
+    <!-- Ranking Modal -->
+    <div id="ranking-modal" class="modal">
+        <div class="modal-content ranking-content" style="max-width: 600px; padding: 0;">
+            <div class="modal-header">
+                <h2>🏆 Ranking Global</h2>
+                <button id="close-ranking-btn" class="btn-cancel"
+                    style="padding: 5px 10px; font-size: 1.5rem; border: none;">×</button>
+            </div>
+            <div id="ranking-list"
+                style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+                <!-- Ranking items will be injected here -->
+                <div style="text-align: center; color: #94a3b8;">Cargando...</div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Google Maps JS API -->
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDcgWTXsYOLFXuBiVBjnnMzc5fmwdDVKDk&libraries=geometry&callback=initApp"
+        async defer></script>
+
+    <script type="module" src="script.js"></script>
+</body>
+
+</html>
