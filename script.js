@@ -576,6 +576,17 @@ document.getElementById('btn-join-duel').addEventListener('click', () => {
     Duels.join(id);
 });
 
+// Leaderboard Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-tab');
+        document.getElementById(tabId).classList.add('active');
+    });
+});
+
 // Anti-cheat / F12 Detector
 window.addEventListener('keydown', (e) => {
     if (e.key === 'F12') {

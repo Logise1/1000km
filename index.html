@@ -63,23 +63,19 @@
             <p class="subtitle">Selecciona un modo de juego o gestiona duelos</p>
             
             <div class="menu-layout">
-                <!-- Columna Izquierda: Clasificaciones -->
-                <div class="menu-sidebar">
-                    <div class="sidebar-section glass">
-                        <h3 class="sidebar-title">Madrid</h3>
-                        <ul id="lb-madrid" class="sidebar-list"></ul>
+                <!-- Columna Izquierda: Clasificaciones con Tabs -->
+                <div class="menu-sidebar glass" style="padding: 1rem;">
+                    <div class="sidebar-tabs">
+                        <button class="tab-btn active" data-tab="lb-madrid">Mad</button>
+                        <button class="tab-btn" data-tab="lb-peninsula">Pen</button>
+                        <button class="tab-btn" data-tab="lb-mundo">Mun</button>
+                        <button class="tab-btn" data-tab="lb-daily">Dia</button>
                     </div>
-                    <div class="sidebar-section glass">
-                        <h3 class="sidebar-title">Península</h3>
-                        <ul id="lb-peninsula" class="sidebar-list"></ul>
-                    </div>
-                    <div class="sidebar-section glass">
-                        <h3 class="sidebar-title">Mundo</h3>
-                        <ul id="lb-mundo" class="sidebar-list"></ul>
-                    </div>
-                    <div class="sidebar-section glass">
-                        <h3 class="sidebar-title">Diario</h3>
-                        <ul id="lb-daily" class="sidebar-list"></ul>
+                    <div class="sidebar-content" style="margin-top: 1rem;">
+                        <ul id="lb-madrid" class="sidebar-list tab-content active"></ul>
+                        <ul id="lb-peninsula" class="sidebar-list tab-content"></ul>
+                        <ul id="lb-mundo" class="sidebar-list tab-content"></ul>
+                        <ul id="lb-daily" class="sidebar-list tab-content"></ul>
                     </div>
                 </div>
 

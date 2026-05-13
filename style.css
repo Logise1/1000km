@@ -233,40 +233,67 @@ input:focus {
 
 .menu-sidebar {
     flex: 1;
+    min-width: 220px;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    min-width: 200px;
-    max-height: 500px;
-    overflow-y: auto;
 }
 
-.sidebar-section {
-    padding: 0.75rem;
-    font-size: 0.75rem;
-}
-
-.sidebar-title {
-    font-size: 0.8rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
-    color: var(--accent);
-    text-transform: uppercase;
+.sidebar-tabs {
+    display: flex;
+    gap: 0.25rem;
     border-bottom: 1px solid rgba(255,255,255,0.1);
-    padding-bottom: 0.25rem;
+    padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0.4rem 0.2rem;
+    border-radius: 0.4rem;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+.tab-btn:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.tab-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeInTab 0.3s ease;
 }
 
 .sidebar-list {
     list-style: none;
     padding: 0;
     margin: 0;
+    font-size: 0.8rem;
 }
 
 .sidebar-list li {
     display: flex;
     justify-content: space-between;
-    padding: 0.2rem 0;
+    padding: 0.4rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+@keyframes fadeInTab {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .menu-left {
