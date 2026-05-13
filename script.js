@@ -1,523 +1,586 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+// script.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, increment, collection, query, orderBy, limit, getDocs, onSnapshot, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+// --- CONFIGURATION ---
 const firebaseConfig = {
-    apiKey: "AIzaSyAwshPSOTuob9HWccsM792hDNMPBvGmvK0",
-    authDomain: "km-283c8.firebaseapp.com",
-    projectId: "km-283c8",
-    storageBucket: "km-283c8.firebasestorage.app",
-    messagingSenderId: "631283005340",
-    appId: "1:631283005340:web:29ec48ca8be9b0a4c1fa59",
-    measurementId: "G-3RER46ENZW"
+    apiKey: "AIzaSyCMXL0WhinT81jamyvogFKwEQn5-VaasQw",
+    authDomain: "oasis-efaf2.firebaseapp.com",
+    projectId: "oasis-efaf2",
+    storageBucket: "oasis-efaf2.firebasestorage.app",
+    messagingSenderId: "185652969919",
+    appId: "1:185652969919:web:b85bdb2e2135395875a10a"
 };
+
+const MAPS_API_KEY = 'AIzaSyDcgWTXsYOLFXuBiVBjnnMzc5fmwdDVKDk'; // Keeping original Maps key
+
+const BOUNDS = {
+    mundo: { north: 90, south: -90, west: -180, east: 180 },
+    peninsula: { north: 43.8, south: 36.0, west: -9.5, east: 3.4 },
+    madrid: { north: 41.16, south: 39.88, west: -4.55, east: -3.06 },
+    eeuu: { north: 49.38, south: 24.52, west: -124.73, east: -66.95 },
+    canada: { north: 83.1, south: 41.7, west: -141.0, east: -52.6 },
+    brasil: { north: 5.2, south: -33.7, west: -73.9, east: -34.8 },
+    australia: { north: -10.6, south: -43.6, west: 113.1, east: 153.6 },
+    japon: { north: 45.5, south: 24.0, west: 122.9, east: 154.0 },
+    reinounido: { north: 60.8, south: 49.9, west: -8.6, east: 1.7 },
+    francia: { north: 51.1, south: 42.3, west: -4.8, east: 8.2 },
+    italia: { north: 47.1, south: 36.6, west: 6.6, east: 18.5 }
+};
+
+const COUNTRY_LIST = [
+    "España", "EE.UU.", "Canadá", "Brasil", "Australia", "Japón", "Reino Unido", "Francia", "Italia", "Alemania",
+    "México", "Argentina", "Rusia", "China", "India", "Sudáfrica", "Egipto", "Nigeria", "Kenia", "Marruecos",
+    "Turquía", "Arabia Saudita", "Irán", "Pakistán", "Indonesia", "Tailandia", "Vietnam", "Filipinas", "Corea del Sur", "Nueva Zelanda",
+    "Colombia", "Perú", "Chile", "Venezuela", "Ecuador", "Bolivia", "Paraguay", "Uruguay", "Cuba", "Guatemala",
+    "Costa Rica", "Panamá", "Portugal", "Países Bajos", "Bélgica", "Suiza", "Austria", "Grecia", "Polonia", "Suecia",
+    "Noruega", "Finlandia", "Dinamarca", "Irlanda", "Islandia", "Rumanía", "Hungría", "República Checa", "Ucrania", "Kazajistán",
+    "Etiopía", "Ghana", "Senegal", "Madagascar", "Argelia", "Túnez", "Israel", "Jordania", "Líbano", "EAU"
+];
+
+function getDailyCountry() {
+    const dayId = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    const index = dayId % COUNTRY_LIST.length;
+    const name = COUNTRY_LIST[index];
+    const map = {
+        "España": "peninsula", "EE.UU.": "eeuu", "Canadá": "canada", "Brasil": "brasil",
+        "Australia": "australia", "Japón": "japon", "Reino Unido": "reinounido",
+        "Francia": "francia", "Italia": "italia"
+    };
+    return { name, bounds: map[name] || "mundo" };
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Game State
-let gameState = {
-    score: 1000,
-    currentLocation: null,
-    timePenalty: 0,
-    timerInterval: null,
-    guessMarker: null,
-    roundsSurvived: 0,
-    panorama: null,
-    guessMap: null,
-    resultMap: null,
-    svService: null,
-    isGuest: false,
-    username: null
+// --- STATE ---
+let currentUser = null;
+let userData = null;
+let map, panorama, streetViewService, guessMarker, actualMarker, polyline;
+let totalKilometers = 0;
+let gameBounds = null;
+let actualLocation = null;
+let guessedLocation = null;
+let isMapVisible = false;
+let gameState = 'loading'; // 'loading', 'playing', 'result'
+let currentDuel = null;
+let duelTimer = null;
+let timeLeft = 60;
+let isDuel = false;
+let currentMode = 'peninsula';
+
+// --- DOM ELEMENTS ---
+const screens = {
+    auth: document.getElementById('auth-screen'),
+    menu: document.getElementById('menu-screen'),
+    game: document.getElementById('game-screen'),
+    duelSetup: document.getElementById('duel-setup-screen')
 };
 
-// Config
-const SPAIN_BOUNDS = {
-    north: 43.79,
-    south: 36.0,
-    west: -9.3,
-    east: 3.3
-};
-
-// DOM Elements
-const homeScreen = document.getElementById('home-screen');
-const startGameBtn = document.getElementById('start-game-btn');
-const statusBar = document.getElementById('status-bar');
-const gameView = document.getElementById('game-view');
-
-const loginContainer = document.getElementById('login-container');
-const gameStartContainer = document.getElementById('game-start-container');
-const usernameInput = document.getElementById('username-input');
-const passwordInput = document.getElementById('password-input');
-const loginBtn = document.getElementById('login-btn');
-const guestBtn = document.getElementById('guest-btn');
-const loginError = document.getElementById('login-error');
-const userDisplay = document.getElementById('user-display');
-const logoutBtn = document.getElementById('logout-btn');
-const rankingBtn = document.getElementById('ranking-btn');
-
-const scoreEl = document.getElementById('score-value');
-const penaltyEl = document.getElementById('penalty-value');
-const timerContainer = document.getElementById('timer-container');
-const streetViewContainer = document.getElementById('street-view');
-const guessBtn = document.getElementById('guess-btn');
-const mapModal = document.getElementById('map-modal');
-const closeMapBtn = document.getElementById('close-map-btn');
-const confirmGuessBtn = document.getElementById('confirm-guess-btn');
-const modalTimerEl = document.getElementById('modal-timer');
-const resultModal = document.getElementById('result-modal');
-const distanceResultEl = document.getElementById('distance-result');
-const timePenaltyResultEl = document.getElementById('time-penalty-result');
-const totalLossEl = document.getElementById('total-loss');
-const nextRoundBtn = document.getElementById('next-round-btn');
-const gameOverModal = document.getElementById('game-over-modal');
-const restartBtn = document.getElementById('restart-btn');
-const roundsSurvivedEl = document.getElementById('rounds-survived');
-
-const rankingModal = document.getElementById('ranking-modal');
-const rankingList = document.getElementById('ranking-list');
-const closeRankingBtn = document.getElementById('close-ranking-btn');
-
-
-// --- Auth Functions --- //
-
-function handleLogin() {
-    const username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
-
-    if (!username || !password) {
-        loginError.textContent = "Introduce usuario y contraseña";
-        return;
+// --- ANTI-SCRAPE & BOT DETECTION ---
+const security = {
+    checkBot() {
+        if (navigator.webdriver) return true;
+        if (window.outerWidth === 0 && window.outerHeight === 0) return true;
+        return false;
+    },
+    hash(str) {
+        // Simple hash to obscure data slightly
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = (hash << 5) - hash + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return hash.toString(36);
     }
+};
 
-    loginError.textContent = "Conectando...";
-    const email = `${username}@email.com`;
+// --- AUTHENTICATION ---
+const AuthSystem = {
+    async login(username, password) {
+        if (security.checkBot()) { console.warn("Bot detected"); return; }
+        const email = `${username}@email.com`;
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            return userCredential.user;
+        } catch (error) {
+            console.error("Error de login: " + error.message);
+        }
+    },
 
-    // Try Login logic first
-    signInWithEmailAndPassword(auth, email, password)
-        .then(() => {
-            // Success
-            loginError.textContent = "";
-        })
-        .catch((error) => {
-            const errorCode = error.code;
+    async register(username, password) {
+        const email = `${username}@email.com`;
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            // Initialize user doc
+            await setDoc(doc(db, "users", userCredential.user.uid), {
+                username: username,
+                xp: 0,
+                gamesPlayed: 0
+            });
+            return userCredential.user;
+        } catch (error) {
+            console.error("Error de registro: " + error.message);
+        }
+    },
 
-            // If user not found, try generic Create Account logic (Seamless)
-            if (errorCode === 'auth/user-not-found' || errorCode === 'auth/invalid-credential') {
-                // Try Creating
-                loginError.textContent = "Creando cuenta...";
-                createUserWithEmailAndPassword(auth, email, password)
-                    .then(() => {
-                        loginError.textContent = "";
-                    })
-                    .catch((createError) => {
-                        loginError.textContent = "Error al crear: " + createError.message;
+    async logout() {
+        await signOut(auth);
+        showScreen('auth');
+    }
+};
+
+// --- UI NAVIGATION ---
+function showScreen(screenId) {
+    Object.keys(screens).forEach(key => {
+        if (screens[key]) screens[key].classList.add('hidden');
+    });
+    if (screens[screenId]) screens[screenId].classList.remove('hidden');
+}
+
+// --- USER DATA ---
+async function loadUserData(user) {
+    currentUser = user;
+    const docRef = doc(db, "users", user.uid);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        userData = docSnap.data();
+        updateUserUI();
+    }
+}
+
+function updateUserUI() {
+    const usernameEls = document.querySelectorAll('.username-display');
+    const xpEls = document.querySelectorAll('.xp-display');
+
+    usernameEls.forEach(el => el.textContent = userData.username);
+    xpEls.forEach(el => el.textContent = `${userData.xp} XP`);
+}
+
+// --- GAME LOGIC ---
+const Game = {
+    async start(mode, isDuelMode = false) {
+        currentMode = mode;
+        isDuel = isDuelMode;
+        showScreen('game');
+        document.getElementById('loading-overlay').classList.remove('hidden');
+
+        if (!map) {
+            await Game.initMaps();
+        }
+
+        if (typeof mode === 'object') {
+            totalKilometers = Infinity;
+            if (mode.name && (!mode.bounds || mode.bounds === "mundo")) {
+                const geocoder = new google.maps.Geocoder();
+                try {
+                    const result = await new Promise((resolve, reject) => {
+                        geocoder.geocode({ 'address': mode.name }, (results, status) => {
+                            if (status === 'OK' && results.length > 0) resolve(results[0]);
+                            else reject(status);
+                        });
                     });
-            } else if (errorCode === 'auth/wrong-password') {
-                loginError.textContent = "Contraseña incorrecta";
+                    const b = result.geometry.bounds || result.geometry.viewport;
+                    gameBounds = {
+                        north: b.getNorthEast().lat(),
+                        south: b.getSouthWest().lat(),
+                        east: b.getNorthEast().lng(),
+                        west: b.getSouthWest().lng()
+                    };
+                } catch (e) {
+                    console.error("Geocoder failed for", mode.name, e);
+                    gameBounds = BOUNDS.mundo;
+                }
             } else {
-                loginError.textContent = "Error: " + errorCode;
+                gameBounds = BOUNDS[mode.bounds] || BOUNDS.mundo;
             }
-        });
-}
-
-function handleGuestLogin() {
-    signInAnonymously(auth)
-        .then(() => {
-            // success, observer handles UI
-        })
-        .catch((error) => {
-            loginError.textContent = "Error invitado: " + error.code;
-        });
-}
-
-function handleLogout() {
-    signOut(auth).catch((error) => console.error(error));
-}
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        if (user.isAnonymous) {
-            gameState.isGuest = true;
-            gameState.username = "Invitado";
-            userDisplay.textContent = "Invitado";
-            userDisplay.style.color = "#94a3b8";
+            currentMode.boundsData = gameBounds;
         } else {
-            gameState.isGuest = false;
-            const fakeUsername = user.email ? user.email.split('@')[0] : "Jugador";
-            gameState.username = fakeUsername;
-            userDisplay.textContent = fakeUsername;
-            userDisplay.style.color = "#38bdf8";
-        }
-
-        loginContainer.style.display = 'none';
-        gameStartContainer.style.display = 'flex';
-    } else {
-        gameState.isGuest = false;
-        gameState.username = null;
-        loginContainer.style.display = 'flex';
-        gameStartContainer.style.display = 'none';
-        resetGame();
-    }
-});
-
-// --- Ranking Logic --- //
-
-async function loadRanking() {
-    openModal(rankingModal);
-    rankingList.innerHTML = '<div style="text-align: center; color: #94a3b8;">Cargando clasificación...</div>';
-
-    try {
-        const q = query(collection(db, "leaderboard"), orderBy("rounds", "desc"), limit(50));
-        const querySnapshot = await getDocs(q);
-
-        rankingList.innerHTML = "";
-
-        if (querySnapshot.empty) {
-            rankingList.innerHTML = '<div style="text-align: center; color: #94a3b8;">Aún no hay puntuaciones.</div>';
-            return;
-        }
-
-        let rank = 1;
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            const item = document.createElement('div');
-            item.className = 'rank-item';
-            item.style.cssText = `
-                display: flex; 
-                justify-content: space-between; 
-                align-items: center; 
-                background: rgba(255,255,255,0.05); 
-                padding: 15px; 
-                border-radius: 10px;
-                border: 1px solid rgba(255,255,255,0.05);
-            `;
-
-            const isMe = !gameState.isGuest && data.username === gameState.username; // simple check
-            if (isMe) item.style.background = 'rgba(56, 189, 248, 0.1)';
-
-            item.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <span style="font-size: 1.2rem; font-weight: 800; color: ${rank <= 3 ? '#fbbf24' : '#94a3b8'}; width: 30px;">#${rank}</span>
-                    <span style="font-weight: 600; color: white;">${data.username}</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="color: #38bdf8; font-weight: 800; font-size: 1.2rem;">${data.rounds}</span>
-                    <span style="font-size: 0.8rem; color: #94a3b8;">RONDA${data.rounds === 1 ? '' : 'S'}</span>
-                </div>
-            `;
-            rankingList.appendChild(item);
-            rank++;
-        });
-
-    } catch (e) {
-        console.error("Error loading ranking", e);
-        rankingList.innerHTML = '<div style="text-align: center; color: #ef4444;">Error al cargar.</div>';
-    }
-}
-
-async function saveScore() {
-    if (gameState.isGuest) return; // Guests don't save
-    // if (gameState.roundsSurvived <= 0) return; // Optional logic
-
-    try {
-        await addDoc(collection(db, "leaderboard"), {
-            username: gameState.username,
-            rounds: gameState.roundsSurvived,
-            timestamp: new Date()
-        });
-    } catch (e) {
-        console.error("Error saving score", e);
-    }
-}
-
-// --- App/Maps Init --- //
-
-function initApp() {
-    gameState.svService = new google.maps.StreetViewService();
-}
-window.initApp = initApp;
-
-
-// --- Game Functions --- //
-
-function startGame() {
-    homeScreen.style.display = 'none';
-    statusBar.style.display = 'flex';
-    gameView.style.visibility = 'visible';
-
-    gameState.score = 1000;
-    gameState.roundsSurvived = 0;
-    updateScoreDisplay();
-
-    startRound();
-}
-
-async function startRound() {
-    stopTimer();
-
-    gameState.timePenalty = 0;
-    penaltyEl.textContent = "0";
-    modalTimerEl.textContent = "0";
-
-    closeModal(mapModal);
-    closeModal(resultModal);
-    closeModal(gameOverModal);
-
-    try {
-        const location = await findRandomStreetView();
-        gameState.currentLocation = location;
-
-        const panoramaOptions = {
-            position: location,
-            pov: { heading: 0, pitch: 0 },
-            zoom: 1,
-            disableDefaultUI: true,
-            showRoadLabels: false,
-            addressControl: false,
-            linksControl: true,
-            panControl: true,
-            enableCloseButton: false
-        };
-
-        gameState.panorama = new google.maps.StreetViewPanorama(
-            streetViewContainer,
-            panoramaOptions
-        );
-
-        startTimer();
-
-    } catch (error) {
-        console.error("Failed to find location", error);
-        startRound();
-    }
-}
-
-function getRandomCoordinate() {
-    const lat = Math.random() * (SPAIN_BOUNDS.north - SPAIN_BOUNDS.south) + SPAIN_BOUNDS.south;
-    const lng = Math.random() * (SPAIN_BOUNDS.east - SPAIN_BOUNDS.west) + SPAIN_BOUNDS.west;
-    return { lat, lng };
-}
-
-function findRandomStreetView(attempts = 0) {
-    return new Promise((resolve, reject) => {
-        if (attempts > 50) {
-            reject("Unable to find valid StreetView in Spain after 50 attempts.");
-            return;
-        }
-
-        const center = getRandomCoordinate();
-
-        gameState.svService.getPanorama({
-            location: center,
-            radius: 10000,
-            source: google.maps.StreetViewSource.OUTDOOR
-        }, (data, status) => {
-            if (status === google.maps.StreetViewStatus.OK) {
-                resolve(data.location.latLng);
-            } else {
-                findRandomStreetView(attempts + 1).then(resolve).catch(reject);
+            totalKilometers = Infinity;
+            switch (mode) {
+                case 'mundo': gameBounds = BOUNDS.mundo; break;
+                case 'madrid': gameBounds = BOUNDS.madrid; break;
+                case 'peninsula':
+                default: gameBounds = BOUNDS.peninsula; break;
             }
-        });
-    });
-}
-
-// Map Logic
-function openGuessMap() {
-    openModal(mapModal);
-
-    if (!gameState.guessMap) {
-        gameState.guessMap = new google.maps.Map(document.getElementById('guess-map'), {
-            center: { lat: 40.4168, lng: -3.7038 },
-            zoom: 6,
-            mapTypeId: 'roadmap',
-            disableDefaultUI: true,
-            streetViewControl: false,
-            clickableIcons: false
-        });
-
-        gameState.guessMap.addListener('click', (e) => {
-            placeGuessMarker(e.latLng);
-        });
-    }
-
-    requestAnimationFrame(() => {
-        if (gameState.guessMap) {
-            google.maps.event.trigger(gameState.guessMap, 'resize');
-            gameState.guessMap.setCenter({ lat: 40.4168, lng: -3.7038 });
         }
-    });
 
-    // Fallback
-    setTimeout(() => {
-        if (gameState.guessMap) google.maps.event.trigger(gameState.guessMap, 'resize');
-    }, 500);
+        document.getElementById('score').textContent = "∞";
+        Game.loadNewRound();
+    },
 
-    confirmGuessBtn.disabled = !gameState.guessMarker;
-}
+    initMaps() {
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=geometry&callback=initGameMaps`;
+            script.async = true;
+            document.head.appendChild(script);
+            window.initGameMaps = () => {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: { lat: 40.4, lng: -3.7 },
+                    zoom: 5,
+                    disableDefaultUI: true,
+                    zoomControl: true,
+                    streetViewControl: false
+                });
 
-function placeGuessMarker(latLng) {
-    if (gameState.guessMarker) {
-        gameState.guessMarker.setMap(null);
-    }
-    gameState.guessMarker = new google.maps.Marker({
-        position: latLng,
-        map: gameState.guessMap,
-        title: "Tu elección"
-    });
-    confirmGuessBtn.disabled = false;
-}
+                panorama = new google.maps.StreetViewPanorama(document.getElementById('pano'), {
+                    addressControl: false,
+                    linksControl: true,
+                    panControl: true,
+                    zoomControl: true,
+                    scrollwheel: true,
+                    enableCloseButton: false
+                });
+                map.setStreetView(panorama);
+                streetViewService = new google.maps.StreetViewService();
 
-function closeGuessMap() {
-    closeModal(mapModal);
-}
-
-function confirmGuess() {
-    stopTimer();
-
-    const guessLatLng = gameState.guessMarker.getPosition();
-    const actualLatLng = gameState.currentLocation;
-
-    const distanceMeters = google.maps.geometry.spherical.computeDistanceBetween(guessLatLng, actualLatLng);
-    const distanceKm = Math.round(distanceMeters / 1000);
-
-    const timeLoss = gameState.timePenalty;
-    const totalLoss = distanceKm + timeLoss;
-
-    gameState.score -= totalLoss;
-    if (gameState.score < 0) gameState.score = 0; // Prevent negative display
-
-    gameState.roundsSurvived++;
-
-    updateScoreDisplay();
-
-    showResults(distanceKm, timeLoss, totalLoss, guessLatLng, actualLatLng);
-}
-
-function showResults(distanceKm, timeLoss, totalLoss, guessLatLng, actualLatLng) {
-    closeModal(mapModal);
-    openModal(resultModal);
-
-    distanceResultEl.textContent = `${distanceKm} km`;
-    timePenaltyResultEl.textContent = `-${timeLoss} km`;
-    totalLossEl.textContent = `${totalLoss} km`;
-
-    setTimeout(() => {
-        const map = new google.maps.Map(document.getElementById('result-map'), {
-            center: actualLatLng,
-            zoom: 6,
-            mapTypeId: 'roadmap',
-            disableDefaultUI: true,
-            clickableIcons: false
+                map.addListener('click', (e) => {
+                    if (gameState !== 'playing') return;
+                    guessedLocation = e.latLng;
+                    if (!guessMarker) {
+                        guessMarker = new google.maps.Marker({ position: guessedLocation, map: map, icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' });
+                    } else {
+                        guessMarker.setPosition(guessedLocation);
+                    }
+                    document.getElementById('guess-button').disabled = false;
+                });
+                resolve();
+            };
         });
+    },
 
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend(guessLatLng);
-        bounds.extend(actualLatLng);
-        map.fitBounds(bounds, 50);
+    async loadNewRound() {
+        gameState = 'loading';
+        document.getElementById('loading-overlay').classList.remove('hidden');
+        document.getElementById('result-text').textContent = '';
+        document.getElementById('guess-button').classList.remove('hidden');
+        document.getElementById('next-round-button').classList.add('hidden');
+        document.getElementById('guess-button').disabled = true;
+        document.getElementById('map-container').classList.remove('full-screen');
 
-        new google.maps.Marker({
-            position: actualLatLng,
+        if (guessMarker) guessMarker.setMap(null);
+        if (actualMarker) actualMarker.setMap(null);
+        if (polyline) polyline.setMap(null);
+
+        guessMarker = null;
+        actualMarker = null;
+        polyline = null;
+        guessedLocation = null;
+
+        actualLocation = await Game.findRandomLocation();
+        panorama.setPosition(actualLocation);
+
+        if (currentMode === 'mundo') {
+            map.setCenter({ lat: 0, lng: 0 });
+            map.setZoom(2);
+        } else if (currentMode === 'madrid') {
+            map.setCenter({ lat: 40.4168, lng: -3.7038 });
+            map.setZoom(11);
+        } else if (typeof currentMode === 'object') {
+            const b = currentMode.boundsData || BOUNDS.mundo;
+            map.setCenter({ lat: (b.north + b.south)/2, lng: (b.east + b.west)/2 });
+            map.setZoom(4);
+            if (currentMode.boundsData) map.fitBounds(new google.maps.LatLngBounds(
+                new google.maps.LatLng(b.south, b.west),
+                new google.maps.LatLng(b.north, b.east)
+            ));
+        } else {
+            map.setCenter({ lat: 40.4, lng: -3.7 });
+            map.setZoom(5);
+        }
+
+        document.getElementById('loading-overlay').classList.add('hidden');
+        gameState = 'playing';
+
+        if (isDuel) {
+            Game.startTimer();
+        }
+    },
+
+    findRandomLocation() {
+        return new Promise((resolve) => {
+            const tryToFind = () => {
+                const lat = Math.random() * (gameBounds.north - gameBounds.south) + gameBounds.south;
+                const lng = Math.random() * (gameBounds.east - gameBounds.west) + gameBounds.west;
+                const randomPoint = new google.maps.LatLng(lat, lng);
+
+                streetViewService.getPanorama({
+                    location: randomPoint,
+                    radius: 50000,
+                    source: google.maps.StreetViewSource.OUTDOOR
+                }, (data, status) => {
+                    if (status === 'OK') {
+                        resolve(data.location.latLng);
+                    } else {
+                        setTimeout(tryToFind, 50);
+                    }
+                });
+            };
+            tryToFind();
+        });
+    },
+
+    async handleGuess() {
+        if (!guessedLocation || gameState !== 'playing') return;
+
+        gameState = 'result';
+        const distanceInMeters = google.maps.geometry.spherical.computeDistanceBetween(actualLocation, guessedLocation);
+        const distanceInKm = Math.round(distanceInMeters / 1000);
+
+        totalKilometers -= distanceInKm;
+        if (totalKilometers < 0) totalKilometers = 0;
+
+        document.getElementById('score').textContent = totalKilometers;
+        document.getElementById('result-text').textContent = `¡Fallaste por ${distanceInKm} km!`;
+
+        // Make map full screen
+        document.getElementById('map-container').classList.add('full-screen');
+
+        // Show results on map
+        actualMarker = new google.maps.Marker({
+            position: actualLocation,
             map: map,
-            icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-            title: "Realidad"
+            icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
         });
 
-        new google.maps.Marker({
-            position: guessLatLng,
-            map: map,
-            icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-            title: "Tu elección"
-        });
-
-        new google.maps.Polyline({
-            path: [actualLatLng, guessLatLng],
+        polyline = new google.maps.Polyline({
+            path: [actualLocation, guessedLocation],
             geodesic: true,
-            strokeColor: '#ef4444',
+            strokeColor: '#FF0000',
             strokeOpacity: 1.0,
-            strokeWeight: 3,
+            strokeWeight: 2,
             map: map
         });
 
-    }, 100);
-}
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(actualLocation);
+        bounds.extend(guessedLocation);
+        map.fitBounds(bounds);
 
-function checkNextRound() {
-    if (gameState.score <= 0) {
-        handleGameOver();
-    } else {
-        if (gameState.guessMarker) {
-            gameState.guessMarker.setMap(null);
-            gameState.guessMarker = null;
+        document.getElementById('guess-button').classList.add('hidden');
+        document.getElementById('next-round-button').classList.remove('hidden');
+
+        // Reward XP sin límite de km
+        const xpGained = Math.max(10, 100 - Math.floor(distanceInKm / 10));
+        const xpField = (typeof currentMode === 'object') ? 'xp_daily' : `xp_${currentMode}`;
+        
+        await updateDoc(doc(db, "users", currentUser.uid), {
+            xp: increment(xpGained),
+            [xpField]: increment(xpGained)
+        });
+        
+        userData.xp += xpGained;
+        userData[xpField] = (userData[xpField] || 0) + xpGained;
+        updateUserUI();
+
+        if (isDuel) {
+            Game.handleDuelGuess();
         }
-        startRound();
+    },
+
+    end() {
+        document.getElementById('result-text').textContent = "¡Juego Terminado!";
+        setTimeout(() => showScreen('menu'), 2000);
+    },
+
+    startTimer() {
+        clearInterval(duelTimer);
+        timeLeft = 60;
+        document.getElementById('timer').textContent = `Tiempo: ${timeLeft}s`;
+        duelTimer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').textContent = `Tiempo: ${timeLeft}s`;
+            if (timeLeft <= 0) {
+                clearInterval(duelTimer);
+                Game.handleGuess(); // Auto guess or lose
+            }
+        }, 1000);
+    },
+
+    async handleDuelGuess() {
+        clearInterval(duelTimer);
+        // In a real duel, we would update Firestore and listener would trigger 20s for opponent
+        if (currentDuel) {
+            const duelRef = doc(db, "duels", currentDuel.id);
+            await updateDoc(duelRef, {
+                [`guesses.${currentUser.uid}`]: {
+                    lat: guessedLocation.lat(),
+                    lng: guessedLocation.lng(),
+                    time: 60 - timeLeft
+                },
+                opponentTimer: 20 // Set opponent timer to 20s
+            });
+        }
     }
+};
+
+// --- DUELS ---
+const Duels = {
+    async create(world, rules) {
+        const duelRef = doc(collection(db, "duels"));
+        await setDoc(duelRef, {
+            creator: currentUser.uid,
+            world: world,
+            rules: rules,
+            status: 'waiting',
+            createdAt: new Date(),
+            players: [currentUser.uid]
+        });
+        currentDuel = { id: duelRef.id, ...rules, world };
+        document.getElementById('duel-id-input').value = duelRef.id;
+        Duels.listen(duelRef.id);
+    },
+
+    async join(duelId) {
+        const duelRef = doc(db, "duels", duelId);
+        const docSnap = await getDoc(duelRef);
+        if (docSnap.exists() && docSnap.data().status === 'waiting') {
+            await updateDoc(duelRef, {
+                players: arrayUnion(currentUser.uid),
+                status: 'playing'
+            });
+            currentDuel = { id: duelId, ...docSnap.data() };
+            Game.start(docSnap.data().world, true);
+        } else {
+            console.warn("Duelo no encontrado o lleno.");
+        }
+    },
+
+    listen(duelId) {
+        onSnapshot(doc(db, "duels", duelId), (doc) => {
+            const data = doc.data();
+            if (data.status === 'playing' && gameState === 'loading') {
+                Game.start(data.world, true);
+            }
+            if (data.opponentTimer && timeLeft > data.opponentTimer) {
+                timeLeft = data.opponentTimer; // Drop timer to 20s
+            }
+        });
+    }
+};
+
+// --- LEADERBOARD ---
+const Leaderboard = {
+    async refreshAll() {
+        this.fetchMode('xp_madrid', 'lb-madrid');
+        this.fetchMode('xp_peninsula', 'lb-peninsula');
+        this.fetchMode('xp_mundo', 'lb-mundo');
+        this.fetchMode('xp_daily', 'lb-daily');
+    },
+    async fetchMode(field, elementId) {
+        const q = query(collection(db, "users"), orderBy(field, "desc"), limit(5));
+        const querySnapshot = await getDocs(q);
+        const list = document.getElementById(elementId);
+        if (!list) return;
+        list.innerHTML = '';
+        let rank = 1;
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data[field]) {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${rank++}. ${data.username}</span> <span>${data[field]}</span>`;
+                list.appendChild(li);
+            }
+        });
+    }
+};
+
+async function fetchWikimediaImage(countryName) {
+    const url = `https://es.wikipedia.org/w/api.php?action=query&prop=pageimages&titles=${encodeURIComponent(countryName)}&piprop=thumbnail&pithumbsize=800&format=json&origin=*`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const pages = data.query.pages;
+        const pageId = Object.keys(pages)[0];
+        if (pageId !== "-1" && pages[pageId].thumbnail) {
+            return pages[pageId].thumbnail.source;
+        }
+    } catch (error) {
+        console.error("Error fetching Wikimedia image:", error);
+    }
+    // Fallback image
+    return "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Maligne_Lake_Jasper_National_Park.jpg/800px-Maligne_Lake_Jasper_National_Park.jpg";
 }
 
-async function handleGameOver() {
-    roundsSurvivedEl.textContent = gameState.roundsSurvived;
-    closeModal(resultModal);
-    openModal(gameOverModal);
-
-    // Save Score
-    await saveScore();
+async function updateDailyChallengeUI() {
+    const daily = getDailyCountry();
+    const countryEl = document.getElementById('challenge-country');
+    if (countryEl) countryEl.textContent = daily.name;
+    
+    const imgEl = document.getElementById('challenge-img');
+    const menuScreen = document.getElementById('menu-screen');
+    
+    if (imgEl) imgEl.src = "loading.svg"; // Loading placeholder
+    const imgSrc = await fetchWikimediaImage(daily.name);
+    if (imgEl) imgEl.src = imgSrc;
 }
 
+// --- INIT & EVENT LISTENERS ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        loadUserData(user);
+        updateDailyChallengeUI();
+        Leaderboard.refreshAll();
+        showScreen('menu');
+    } else {
+        showScreen('auth');
+    }
+});
 
-function resetGame() {
-    closeModal(gameOverModal);
-    closeModal(rankingModal);
-    homeScreen.style.display = 'flex';
-    statusBar.style.display = 'none';
-    gameView.style.visibility = 'hidden';
-}
+// Auth Events
+document.getElementById('login-btn').addEventListener('click', async () => {
+    const u = document.getElementById('auth-user').value;
+    const p = document.getElementById('auth-pass').value;
+    await AuthSystem.login(u, p);
+});
 
-// Timer Logic
-function startTimer() {
-    if (gameState.timerInterval) clearInterval(gameState.timerInterval);
-    gameState.timerInterval = setInterval(() => {
-        gameState.timePenalty++;
-        penaltyEl.textContent = gameState.timePenalty;
-        modalTimerEl.textContent = gameState.timePenalty;
-    }, 1000);
-}
+document.getElementById('register-btn').addEventListener('click', async () => {
+    const u = document.getElementById('auth-user').value;
+    const p = document.getElementById('auth-pass').value;
+    await AuthSystem.register(u, p);
+});
 
-function stopTimer() {
-    clearInterval(gameState.timerInterval);
-    gameState.timerInterval = null;
-}
+document.getElementById('logout-btn').addEventListener('click', () => AuthSystem.logout());
 
-// UI Helpers
-function updateScoreDisplay() {
-    scoreEl.textContent = gameState.score;
-    // scoreEl.style.color = gameState.score <= 0 ? '#ef4444' : '#38bdf8';
-}
+// Menu Events
+document.getElementById('mode-madrid').addEventListener('click', () => Game.start('madrid'));
+document.getElementById('btn-challenge').addEventListener('click', () => {
+    const daily = getDailyCountry();
+    Game.start(daily);
+});
+document.getElementById('mode-peninsula').addEventListener('click', () => Game.start('peninsula'));
+document.getElementById('mode-mundo').addEventListener('click', () => Game.start('mundo'));
 
-function openModal(el) {
-    el.classList.add('active');
-}
+// Game Events
+document.getElementById('guess-button').addEventListener('click', () => Game.handleGuess());
+document.getElementById('next-round-button').addEventListener('click', () => Game.loadNewRound());
+document.getElementById('end-game-button').addEventListener('click', () => Game.end());
+document.getElementById('map-toggle').addEventListener('click', () => {
+    const container = document.getElementById('map-container');
+    container.classList.toggle('minimized');
+});
 
-function closeModal(el) {
-    el.classList.remove('active');
-}
+// Duel Events
+document.getElementById('btn-create-duel').addEventListener('click', () => {
+    const world = document.getElementById('duel-world').value;
+    const move = document.getElementById('duel-move').checked;
+    Duels.create(world, { move });
+});
 
-// Event Listeners
-loginBtn.addEventListener('click', handleLogin);
-guestBtn.addEventListener('click', handleGuestLogin);
-logoutBtn.addEventListener('click', handleLogout);
-rankingBtn.addEventListener('click', loadRanking);
-closeRankingBtn.addEventListener('click', () => closeModal(rankingModal));
+document.getElementById('btn-join-duel').addEventListener('click', () => {
+    const id = document.getElementById('duel-id-input').value;
+    Duels.join(id);
+});
 
-startGameBtn.addEventListener('click', startGame);
-guessBtn.addEventListener('click', openGuessMap);
-closeMapBtn.addEventListener('click', closeGuessMap);
-confirmGuessBtn.addEventListener('click', confirmGuess);
-nextRoundBtn.addEventListener('click', checkNextRound);
-restartBtn.addEventListener('click', resetGame);
+// Anti-cheat / F12 Detector
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'F12') {
+        window.location.href = 'uhoh.html';
+    }
+});
 
-passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleLogin(); });
-usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleLogin(); });
-
-window.initApp = initApp;
+// Expose some functions to global for HTML inline onclicks (though better to avoid)
