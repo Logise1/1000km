@@ -146,6 +146,7 @@ async function loadUserData(user) {
     if (docSnap.exists()) {
         userData = docSnap.data();
         updateUserUI();
+        Leaderboard.refreshAll();
     }
 }
 
@@ -337,16 +338,8 @@ const Game = {
         const distanceInKm = Math.round(distanceInMeters / 1000);
 
         totalKilometers -= distanceInKm;
+        if (totalKilometers < 0) totalKilometers = 0;
         
-        if (totalKilometers <= 0) {
-            totalKilometers = 0;
-            document.getElementById('score').textContent = 0;
-            document.getElementById('result-text').textContent = `¡PERDISTE! Fallaste por ${distanceInKm} km.`;
-            Game.end();
-            return;
-        }
-
-        roundsSurvived++;
         document.getElementById('score').textContent = totalKilometers;
         document.getElementById('result-text').textContent = `¡Fallaste por ${distanceInKm} km!`;
 
@@ -375,31 +368,44 @@ const Game = {
         map.fitBounds(bounds);
 
         document.getElementById('guess-button').classList.add('hidden');
-        document.getElementById('next-round-button').classList.remove('hidden');
 
+        if (totalKilometers <= 0) {
+            document.getElementById('result-text').textContent = `¡JUEGO TERMINADO! Fallaste por ${distanceInKm} km.`;
+            document.getElementById('end-game-button').classList.remove('hidden');
+            // Automáticamente guardar después de 4 segundos si no pulsan nada
+            setTimeout(() => { if (gameState === 'result') Game.end(); }, 4000);
+            return;
+        }
+
+        roundsSurvived++;
+        document.getElementById('next-round-button').classList.remove('hidden');
     },
 
     async end() {
-        gameState = 'result';
-        document.getElementById('result-text').textContent = `Juego Terminado - Rondas: ${roundsSurvived}`;
+        if (gameState === 'menu') return;
+        gameState = 'menu';
+        document.getElementById('result-text').textContent = `Guardando récord... Rondas: ${roundsSurvived}`;
         
         // Guardar récord
         const modeKey = (typeof currentMode === 'object') ? 'daily' : currentMode;
         const recordField = `record_${modeKey}`;
         
+        const updates = {
+            total_rounds: increment(roundsSurvived)
+        };
+        
         if (!userData[recordField] || roundsSurvived > userData[recordField]) {
-            await updateDoc(doc(db, "users", currentUser.uid), {
-                [recordField]: roundsSurvived,
-                total_rounds: increment(roundsSurvived)
-            });
+            updates[recordField] = roundsSurvived;
             userData[recordField] = roundsSurvived;
-        } else {
-            await updateDoc(doc(db, "users", currentUser.uid), {
-                total_rounds: increment(roundsSurvived)
-            });
         }
         
-        setTimeout(() => showScreen('menu'), 3000);
+        await updateDoc(doc(db, "users", currentUser.uid), updates);
+        userData.total_rounds = (userData.total_rounds || 0) + roundsSurvived;
+        
+        updateUserUI();
+        Leaderboard.refreshAll();
+        
+        setTimeout(() => showScreen('menu'), 2000);
     },
 
     startTimer() {
