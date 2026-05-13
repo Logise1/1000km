@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duelos 1v1 - 1000km</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <video autoplay loop muted playsinline id="background-video">
+        <source src="bg.mp4" type="video/mp4">
+    </video>
+    <div class="overlay"></div>
+
+    <!-- PANTALLA DE SETUP/ESPERA -->
+    <div id="duel-setup-screen" class="screen">
+        <div class="container glass">
+            <h1>DUELOS <span>1V1</span></h1>
+            
+            <div id="setup-controls">
+                <div class="form-group">
+                    <label>Mundo</label>
+                    <select id="duel-world" style="width: 100%; padding: 0.75rem; background: rgba(15,23,42,0.5); border: 1px solid var(--glass-border); border-radius: 0.5rem; color: white;">
+                        <option value="peninsula">Península</option>
+                        <option value="madrid">Madrid</option>
+                        <option value="mundo">Mundo</option>
+                    </select>
+                </div>
+                <button id="btn-create-duel" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">Crear Duelo</button>
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;"></div>
+                <div class="form-group">
+                    <label>ID de 4 dígitos</label>
+                    <input type="text" id="duel-id-input" maxlength="4" placeholder="Ej: 1234">
+                </div>
+                <button id="btn-join-duel" class="btn btn-secondary" style="width: 100%;">Unirse</button>
+                <button onclick="window.location.href='index.html'" class="btn" style="width: 100%; margin-top: 1rem; background: transparent;">Volver</button>
+            </div>
+
+            <div id="waiting-controls" class="hidden">
+                <p class="subtitle">Esperando a todos...</p>
+                <div style="font-size: 3rem; font-weight: 900; color: var(--accent); margin: 1rem 0;" id="display-code">----</div>
+                <p style="font-size: 0.8rem; opacity: 0.7;">Comparte este código con tu oponente</p>
+                <button id="btn-cancel-duel" class="btn btn-danger" style="margin-top: 2rem;">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANTALLA DE JUEGO (Igual que index.html pero adaptada) -->
+    <div id="game-screen" class="screen hidden" style="padding: 0;">
+        <div id="pano"></div>
+        <div id="map-container" class="glass minimized">
+            <div id="map"></div>
+        </div>
+        <div class="game-ui">
+            <div class="ui-element glass score-box">
+                <span id="score" class="score-value">Duelo</span>
+            </div>
+            <div id="timer" class="ui-element glass timer-box">60s</div>
+            <!-- Botón Google Maps -->
+            <div id="google-maps-btn" class="ui-element glass" style="cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.5rem;">
+                <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" alt="Google" style="height: 15px;">
+            </div>
+        </div>
+        <div id="loading-overlay" class="hidden" style="position: absolute; inset: 0; background: rgba(15,23,42,0.8); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 20;">
+            <img src="loading.svg" alt="Cargando..." style="width: 50px; height: 50px;">
+            <p>Buscando ubicación...</p>
+        </div>
+        <div class="bottom-controls">
+            <button id="map-toggle" class="btn btn-secondary">Mapa</button>
+            <button id="guess-button" class="btn btn-primary" disabled>Adivinar</button>
+        </div>
+    </div>
+
+    <!-- PANTALLA FINAL -->
+    <div id="result-screen" class="screen hidden">
+        <div class="container glass">
+            <h1>FIN DEL <span>DUELO</span></h1>
+            <div id="winner-text" style="font-size: 2rem; font-weight: 900; color: var(--accent); margin: 1rem 0;">Calculando...</div>
+            <div id="results-list" style="text-align: left; margin-bottom: 2rem;"></div>
+            <button onclick="window.location.reload()" class="btn btn-primary" style="width: 100%;">Otro Duelo</button>
+            <button onclick="window.location.href='index.html'" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">Volver al Menú</button>
+        </div>
+    </div>
+
+    <script type="module" src="duelos.js"></script>
+</body>
+</html>

@@ -250,13 +250,14 @@ input:focus {
     background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: 800;
     cursor: pointer;
-    padding: 0.4rem 0.2rem;
+    padding: 0.4rem 0.1rem;
     border-radius: 0.4rem;
     transition: all 0.2s;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -457,6 +458,10 @@ input:focus {
 }
 
 .score-box {
+    position: fixed;
+    bottom: 2rem;
+    left: 2rem;
+    z-index: 20;
     display: flex;
     flex-direction: column;
 }

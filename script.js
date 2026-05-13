@@ -66,10 +66,7 @@ let actualLocation = null;
 let guessedLocation = null;
 let isMapVisible = false;
 let gameState = 'loading'; // 'loading', 'playing', 'result'
-let currentDuel = null;
-let duelTimer = null;
-let timeLeft = 60;
-let isDuel = false;
+let roundsSurvived = 0;
 let currentMode = 'peninsula';
 
 // --- DOM ELEMENTS ---
@@ -118,7 +115,7 @@ const AuthSystem = {
             // Initialize user doc
             await setDoc(doc(db, "users", userCredential.user.uid), {
                 username: username,
-                xp: 0,
+                total_rounds: 0,
                 gamesPlayed: 0
             });
             return userCredential.user;
@@ -157,14 +154,13 @@ function updateUserUI() {
     const xpEls = document.querySelectorAll('.xp-display');
 
     usernameEls.forEach(el => el.textContent = userData.username);
-    xpEls.forEach(el => el.textContent = `${userData.xp} XP`);
+    xpEls.forEach(el => el.textContent = `${userData.total_rounds || 0} Rondas`);
 }
 
 // --- GAME LOGIC ---
 const Game = {
-    async start(mode, isDuelMode = false) {
+    async start(mode) {
         currentMode = mode;
-        isDuel = isDuelMode;
         showScreen('game');
         document.getElementById('loading-overlay').classList.remove('hidden');
 
@@ -173,7 +169,7 @@ const Game = {
         }
 
         if (typeof mode === 'object') {
-            totalKilometers = Infinity;
+            totalKilometers = 1000; // Default for daily/custom
             if (mode.name && (!mode.bounds || mode.bounds === "mundo")) {
                 const geocoder = new google.maps.Geocoder();
                 try {
@@ -199,16 +195,25 @@ const Game = {
             }
             currentMode.boundsData = gameBounds;
         } else {
-            totalKilometers = Infinity;
             switch (mode) {
-                case 'mundo': gameBounds = BOUNDS.mundo; break;
-                case 'madrid': gameBounds = BOUNDS.madrid; break;
+                case 'mundo': 
+                    gameBounds = BOUNDS.mundo; 
+                    totalKilometers = 10000; 
+                    break;
+                case 'madrid': 
+                    gameBounds = BOUNDS.madrid; 
+                    totalKilometers = 100; 
+                    break;
                 case 'peninsula':
-                default: gameBounds = BOUNDS.peninsula; break;
+                default: 
+                    gameBounds = BOUNDS.peninsula; 
+                    totalKilometers = 1000; 
+                    break;
             }
         }
 
-        document.getElementById('score').textContent = "∞";
+        roundsSurvived = 0;
+        document.getElementById('score').textContent = totalKilometers;
         Game.loadNewRound();
     },
 
@@ -332,8 +337,16 @@ const Game = {
         const distanceInKm = Math.round(distanceInMeters / 1000);
 
         totalKilometers -= distanceInKm;
-        if (totalKilometers < 0) totalKilometers = 0;
+        
+        if (totalKilometers <= 0) {
+            totalKilometers = 0;
+            document.getElementById('score').textContent = 0;
+            document.getElementById('result-text').textContent = `¡PERDISTE! Fallaste por ${distanceInKm} km.`;
+            Game.end();
+            return;
+        }
 
+        roundsSurvived++;
         document.getElementById('score').textContent = totalKilometers;
         document.getElementById('result-text').textContent = `¡Fallaste por ${distanceInKm} km!`;
 
@@ -364,27 +377,29 @@ const Game = {
         document.getElementById('guess-button').classList.add('hidden');
         document.getElementById('next-round-button').classList.remove('hidden');
 
-        // Reward XP sin límite de km
-        const xpGained = Math.max(10, 100 - Math.floor(distanceInKm / 10));
-        const xpField = (typeof currentMode === 'object') ? 'xp_daily' : `xp_${currentMode}`;
-        
-        await updateDoc(doc(db, "users", currentUser.uid), {
-            xp: increment(xpGained),
-            [xpField]: increment(xpGained)
-        });
-        
-        userData.xp += xpGained;
-        userData[xpField] = (userData[xpField] || 0) + xpGained;
-        updateUserUI();
-
-        if (isDuel) {
-            Game.handleDuelGuess();
-        }
     },
 
-    end() {
-        document.getElementById('result-text').textContent = "¡Juego Terminado!";
-        setTimeout(() => showScreen('menu'), 2000);
+    async end() {
+        gameState = 'result';
+        document.getElementById('result-text').textContent = `Juego Terminado - Rondas: ${roundsSurvived}`;
+        
+        // Guardar récord
+        const modeKey = (typeof currentMode === 'object') ? 'daily' : currentMode;
+        const recordField = `record_${modeKey}`;
+        
+        if (!userData[recordField] || roundsSurvived > userData[recordField]) {
+            await updateDoc(doc(db, "users", currentUser.uid), {
+                [recordField]: roundsSurvived,
+                total_rounds: increment(roundsSurvived)
+            });
+            userData[recordField] = roundsSurvived;
+        } else {
+            await updateDoc(doc(db, "users", currentUser.uid), {
+                total_rounds: increment(roundsSurvived)
+            });
+        }
+        
+        setTimeout(() => showScreen('menu'), 3000);
     },
 
     startTimer() {
@@ -399,77 +414,16 @@ const Game = {
                 Game.handleGuess(); // Auto guess or lose
             }
         }, 1000);
-    },
-
-    async handleDuelGuess() {
-        clearInterval(duelTimer);
-        // In a real duel, we would update Firestore and listener would trigger 20s for opponent
-        if (currentDuel) {
-            const duelRef = doc(db, "duels", currentDuel.id);
-            await updateDoc(duelRef, {
-                [`guesses.${currentUser.uid}`]: {
-                    lat: guessedLocation.lat(),
-                    lng: guessedLocation.lng(),
-                    time: 60 - timeLeft
-                },
-                opponentTimer: 20 // Set opponent timer to 20s
-            });
-        }
-    }
-};
-
-// --- DUELS ---
-const Duels = {
-    async create(world, rules) {
-        const duelRef = doc(collection(db, "duels"));
-        await setDoc(duelRef, {
-            creator: currentUser.uid,
-            world: world,
-            rules: rules,
-            status: 'waiting',
-            createdAt: new Date(),
-            players: [currentUser.uid]
-        });
-        currentDuel = { id: duelRef.id, ...rules, world };
-        document.getElementById('duel-id-input').value = duelRef.id;
-        Duels.listen(duelRef.id);
-    },
-
-    async join(duelId) {
-        const duelRef = doc(db, "duels", duelId);
-        const docSnap = await getDoc(duelRef);
-        if (docSnap.exists() && docSnap.data().status === 'waiting') {
-            await updateDoc(duelRef, {
-                players: arrayUnion(currentUser.uid),
-                status: 'playing'
-            });
-            currentDuel = { id: duelId, ...docSnap.data() };
-            Game.start(docSnap.data().world, true);
-        } else {
-            console.warn("Duelo no encontrado o lleno.");
-        }
-    },
-
-    listen(duelId) {
-        onSnapshot(doc(db, "duels", duelId), (doc) => {
-            const data = doc.data();
-            if (data.status === 'playing' && gameState === 'loading') {
-                Game.start(data.world, true);
-            }
-            if (data.opponentTimer && timeLeft > data.opponentTimer) {
-                timeLeft = data.opponentTimer; // Drop timer to 20s
-            }
-        });
     }
 };
 
 // --- LEADERBOARD ---
 const Leaderboard = {
     async refreshAll() {
-        this.fetchMode('xp_madrid', 'lb-madrid');
-        this.fetchMode('xp_peninsula', 'lb-peninsula');
-        this.fetchMode('xp_mundo', 'lb-mundo');
-        this.fetchMode('xp_daily', 'lb-daily');
+        this.fetchMode('record_madrid', 'lb-madrid');
+        this.fetchMode('record_peninsula', 'lb-peninsula');
+        this.fetchMode('record_mundo', 'lb-mundo');
+        this.fetchMode('record_daily', 'lb-daily');
     },
     async fetchMode(field, elementId) {
         const q = query(collection(db, "users"), orderBy(field, "desc"), limit(5));
@@ -480,9 +434,9 @@ const Leaderboard = {
         let rank = 1;
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            if (data[field]) {
+            if (data[field] !== undefined) {
                 const li = document.createElement('li');
-                li.innerHTML = `<span>${rank++}. ${data.username}</span> <span>${data[field]}</span>`;
+                li.innerHTML = `<span>${rank++}. ${data.username}</span> <span>${data[field]} R</span>`;
                 list.appendChild(li);
             }
         });
@@ -564,17 +518,14 @@ document.getElementById('map-toggle').addEventListener('click', () => {
     container.classList.toggle('minimized');
 });
 
-// Duel Events
-document.getElementById('btn-create-duel').addEventListener('click', () => {
-    const world = document.getElementById('duel-world').value;
-    const move = document.getElementById('duel-move').checked;
-    Duels.create(world, { move });
+document.getElementById('google-maps-btn').addEventListener('click', () => {
+    if (actualLocation) {
+        const url = `https://www.google.com/maps/search/?api=1&query=${actualLocation.lat},${actualLocation.lng}`;
+        window.open(url, '_blank');
+    }
 });
 
-document.getElementById('btn-join-duel').addEventListener('click', () => {
-    const id = document.getElementById('duel-id-input').value;
-    Duels.join(id);
-});
+
 
 // Leaderboard Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {

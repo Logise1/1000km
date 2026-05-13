@@ -52,7 +52,7 @@
             <div class="avatar">U</div>
             <div class="user-info">
                 <span class="username username-display">Cargando...</span>
-                <span class="xp-display" style="font-size: 0.75rem; color: var(--text-muted);">0 XP</span>
+                <span class="xp-display" style="font-size: 0.75rem; color: var(--text-muted);">0 Rondas</span>
                 <div class="xp-bar"><div class="xp-progress"></div></div>
             </div>
             <button id="logout-btn" class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Salir</button>
@@ -66,10 +66,10 @@
                 <!-- Columna Izquierda: Clasificaciones con Tabs -->
                 <div class="menu-sidebar glass" style="padding: 1rem;">
                     <div class="sidebar-tabs">
-                        <button class="tab-btn active" data-tab="lb-madrid">Mad</button>
-                        <button class="tab-btn" data-tab="lb-peninsula">Pen</button>
-                        <button class="tab-btn" data-tab="lb-mundo">Mun</button>
-                        <button class="tab-btn" data-tab="lb-daily">Dia</button>
+                        <button class="tab-btn active" data-tab="lb-madrid">Madrid</button>
+                        <button class="tab-btn" data-tab="lb-peninsula">Península</button>
+                        <button class="tab-btn" data-tab="lb-mundo">Mundo</button>
+                        <button class="tab-btn" data-tab="lb-daily">Diario</button>
                     </div>
                     <div class="sidebar-content" style="margin-top: 1rem;">
                         <ul id="lb-madrid" class="sidebar-list tab-content active"></ul>
@@ -107,7 +107,6 @@
                     </div>
 
                     <div style="display: flex; gap: 1rem; margin-top: 1.5rem; width: 100%;">
-                        <button onclick="document.getElementById('duel-setup-screen').classList.remove('hidden'); document.getElementById('menu-screen').classList.add('hidden');" class="btn btn-primary" style="flex: 1;">Duelos 1v1</button>
                     </div>
                 </div>
 
@@ -131,38 +130,6 @@
         </div>
     </div>
 
-    <!-- PANTALLA DE DUELOS -->
-    <div id="duel-setup-screen" class="screen hidden">
-        <div class="container glass">
-            <h1>DUELOS <span>1V1</span></h1>
-            <p class="subtitle">Crea o únete a una partida</p>
-            
-            <div class="form-group">
-                <label for="duel-world">Mundo</label>
-                <select id="duel-world" style="width: 100%; padding: 0.75rem; background: rgba(15,23,42,0.5); border: 1px solid var(--glass-border); border-radius: 0.5rem; color: white;">
-                    <option value="peninsula">Península</option>
-                    <option value="madrid">Madrid</option>
-                </select>
-            </div>
-            
-            <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
-                <input type="checkbox" id="duel-move" style="width: auto;">
-                <label for="duel-move" style="margin-bottom: 0;">Permitir moverse</label>
-            </div>
-            
-            <button id="btn-create-duel" class="btn btn-primary" style="width: 100%; margin-bottom: 1.5rem;">Crear Duelo</button>
-            
-            <div style="border-top: 1px solid var(--glass-border); margin: 1.5rem 0; pt-1.5rem"></div>
-            
-            <div class="form-group">
-                <label for="duel-id-input">ID del Duelo</label>
-                <input type="text" id="duel-id-input" placeholder="Pega el ID aquí">
-            </div>
-            
-            <button id="btn-join-duel" class="btn btn-secondary" style="width: 100%;">Unirse a Duelo</button>
-            
-            <button onclick="document.getElementById('duel-setup-screen').classList.add('hidden'); document.getElementById('menu-screen').classList.remove('hidden');" class="btn" style="margin-top: 1rem; background: transparent; color: var(--text-muted);">Volver</button>
-        </div>
     </div>
 
     <!-- PANTALLA DE JUEGO -->
@@ -186,6 +153,11 @@
             
             <div id="timer" class="ui-element glass timer-box">
                 Tiempo: 60s
+            </div>
+
+            <!-- Botón Google Maps -->
+            <div id="google-maps-btn" class="ui-element glass" style="cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.5rem;">
+                <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png" alt="Google" style="height: 15px;">
             </div>
             
             <div class="ui-element glass">
